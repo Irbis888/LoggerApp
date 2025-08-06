@@ -5,14 +5,36 @@
 #include <iostream>
 #include <ctime>
 
-Logger::Logger(const std::string& filename, LogLevel level)
-    : m_level(level)
+#include <stdexcept>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+
+Logger::Logger(const std::string& filename, LogLevel level,
+    LogOutput outputMode = LogOutput::File,
+    const std::string& host = "",
+    int port = 0)
+    : m_level(level), m_outputMode(outputMode)
 {
     m_output.open(filename, std::ios::app);
-    // �� ��: ��� ���������� � ������� ����� �������� ��������� ����� �������
     if (!m_output.is_open()) {
-        // ������ �� ������ � ����������� ������ "�� ����� ��������"
-        // ����� �������� ���� ������, ���� �����������
+        std::cout << "File does not exist" << std::endl;
+    }
+    if (m_outputMode == LogOutput::Socket || m_outputMode == LogOutput::Both) {
+        m_socket = socket(AF_INET, SOCK_STREAM, 0);
+        if (m_socket == -1) {
+            throw std::runtime_error("Failed to create socket");
+        }
+
+        m_serverAddr.sin_family = AF_INET;
+        m_serverAddr.sin_port = htons(port);
+        inet_pton(AF_INET, host.c_str(), &m_serverAddr.sin_addr);
+
+        if (connect(m_socket, (sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) {
+            throw std::runtime_error("Failed to connect to server");
+        }
     }
 }
 
@@ -20,18 +42,28 @@ Logger::~Logger() {
     if (m_output.is_open()) {
         m_output.close();
     }
+    if (m_socket != -1) {
+        close(m_socket);
+    }
 }
 
 void Logger::log(const std::string& message, LogLevel level) {
-    if (level < m_level || !m_output.is_open()) {
-        return;
-    }
+    if (level < m_level) return;
+
+    std::string timestamped = getCurrentTimestamp() + " [" + levelToString(level) + "] " + message + "\n";
 
     std::lock_guard<std::mutex> lock(m_mutex);
 
-    m_output << "[" << getCurrentTimestamp() << "] "
-        << "[" << levelToString(level) << "] "
-        << message << std::endl;
+    if (m_outputMode == LogOutput::File || m_outputMode == LogOutput::Both) {
+        m_output << timestamped;
+        m_output.flush();
+    }
+
+    if (m_outputMode == LogOutput::Socket || m_outputMode == LogOutput::Both) {
+        if (m_socket != -1) {
+            send(m_socket, timestamped.c_str(), timestamped.size(), 0);
+        }
+    }
 }
 
 void Logger::setLevel(LogLevel level) {

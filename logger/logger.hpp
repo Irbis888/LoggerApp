@@ -13,9 +13,18 @@ enum class LogLevel {
     Error
 };
 
+enum class LogOutput {
+    File,
+    Socket,
+    Both
+};
+
 class Logger {
 public:
-    Logger(const std::string& filename, LogLevel level = LogLevel::Info);
+    Logger(const std::string& filename, LogLevel level = LogLevel::Info,
+        LogOutput outputMode = LogOutput::File,
+        const std::string& host = "",
+        int port = 0);
     ~Logger();
 
     void log(const std::string& message, LogLevel level = LogLevel::Info);
@@ -31,4 +40,8 @@ private:
     std::ofstream m_output;
     LogLevel m_level;
     mutable std::mutex m_mutex;
+
+    LogOutput m_outputMode;
+    int m_socket = -1;
+    sockaddr_in m_serverAddr{};
 };
