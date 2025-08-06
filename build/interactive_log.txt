@@ -1,0 +1,21 @@
+2025-08-06 17:27:44 [Info] test 1
+2025-08-06 17:28:03 [Debug] im gay
+2025-08-06 17:28:12 [Error] Fatal Error
+2025-08-06 17:28:18 [Info] sex
+2025-08-06 17:46:31 [Info] wfds
+2025-08-06 17:46:31 [Info] sdfs
+2025-08-06 17:46:32 [Info] sdf
+2025-08-06 17:46:35 [Warning] sex
+2025-08-06 17:46:40 [Error] fatal
+2025-08-06 17:46:46 [Debug] wewewe
+2025-08-06 17:48:48 [Debug] Train
+2025-08-06 17:48:53 [Debug] where
+2025-08-06 17:49:01 [Warning] um gay
+2025-08-06 17:49:08 [Info] hello world
+2025-08-06 18:05:47 [Info] sdf
+2025-08-06 18:05:49 [Info] sdf
+2025-08-06 18:05:49 [Info] sdf
+2025-08-06 18:05:52 [Info] werwet[A
+2025-08-06 18:18:02 [Info] LOCK
+2025-08-06 18:18:07 [Debug] Hello
+2025-08-06 18:18:15 [Error] test exception

@@ -10,12 +10,13 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <cerrno>
 
 
 Logger::Logger(const std::string& filename, LogLevel level,
-    LogOutput outputMode = LogOutput::File,
-    const std::string& host = "",
-    int port = 0)
+    LogOutput outputMode,
+    const std::string& host,
+    int port)
     : m_level(level), m_outputMode(outputMode)
 {
     m_output.open(filename, std::ios::app);
@@ -30,9 +31,12 @@ Logger::Logger(const std::string& filename, LogLevel level,
 
         m_serverAddr.sin_family = AF_INET;
         m_serverAddr.sin_port = htons(port);
-        inet_pton(AF_INET, host.c_str(), &m_serverAddr.sin_addr);
+        if (inet_pton(AF_INET, host.c_str(), &m_serverAddr.sin_addr) <= 0) {
+            throw std::invalid_argument("Invalid IP address: '" + host + "'");
+        }
 
-        if (connect(m_socket, (sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) {
+        if (connect(m_socket, (sockaddr*)&m_serverAddr, sizeof(m_serverAddr)) < 0) { 
+            perror("connect failed");
             throw std::runtime_error("Failed to connect to server");
         }
     }

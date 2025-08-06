@@ -90,11 +90,6 @@ void userInputHandler(Logger& logger) {
         std::string input;
         std::pair<std::string, LogLevel> output;
         while (isRunning) {
-            while (!to_display.empty())
-            {
-                std::cout << to_display.front() << std::endl;
-                to_display.pop();
-            }
             
             std::cout << "> ";
             std::getline(std::cin, input);
@@ -104,6 +99,13 @@ void userInputHandler(Logger& logger) {
                 messageQueue.push(output);
                 hasData.notify_one();
             }
+
+            while (!to_display.empty())
+            {
+                std::cout << to_display.front() << std::endl;
+                to_display.pop();
+            }
+            
         }
         hasData.notify_all(); // разбудить логгер, чтобы он завершился
     };
@@ -139,7 +141,7 @@ void userInputHandler(Logger& logger) {
 }
 
 int main() {
-    Logger logger("interactive_log.txt", LogLevel::Debug);
+    Logger logger("interactive_log.txt", LogLevel::Debug, LogOutput::Both, "127.0.0.1", 9999);
 
     std::thread input(userInputHandler, std::ref(logger));
 

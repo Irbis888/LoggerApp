@@ -3,6 +3,12 @@
 #include <string>
 #include <fstream>
 #include <mutex>
+#include <stdexcept>
+#include <unistd.h>
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
 
 void log_hello();
 
