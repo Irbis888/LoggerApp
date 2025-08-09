@@ -17,7 +17,7 @@ Logger::Logger(const std::string& filename, LogLevel level,
     LogOutput outputMode,
     const std::string& host,
     int port)
-    : m_level(level), m_outputMode(outputMode)
+    : defaultLevel(level), m_outputMode(outputMode)
 {
     m_output.open(filename, std::ios::app);
     if (!m_output.is_open()) {
@@ -73,6 +73,15 @@ void Logger::log(const std::string& message, LogLevel level) {
 void Logger::setLevel(LogLevel level) {
     std::lock_guard<std::mutex> lock(m_mutex);
     m_level = level;
+}
+void Logger::setDefaultLevel(LogLevel level) {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    defaultLevel = level;
+}
+
+LogLevel Logger::getDefaultLevel() const {
+    std::lock_guard<std::mutex> lock(m_mutex);
+    return defaultLevel;
 }
 
 LogLevel Logger::getLevel() const {

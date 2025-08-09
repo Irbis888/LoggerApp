@@ -1,76 +1,106 @@
-// simple_server.cpp — исправленная версия
 #include <iostream>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <unistd.h>
-#include <string>
-#include <thread>
 #include <vector>
-#include <atomic>
+#include <thread>
+#include <mutex>
+#include <algorithm>
+#include <cstring>
+#include <unistd.h>
+#include <deque>
+#include <netinet/in.h>
+#include <sys/socket.h>
+
+const int PORT = 9999;
+const int MAX_BUFFER = 1024;
+
+std::vector<int> client_fds;
+std::mutex clients_mutex;
+
+//Retranslation tool for stat collecting
+void broadcastToOthers(int sender_fd, const std::string& message) {
+    std::lock_guard<std::mutex> lock(clients_mutex);
+    for (int fd : client_fds) {
+        if (fd != sender_fd) {
+            send(fd, message.c_str(), message.size(), 0);
+        }
+    }
+}
+
+void handleClient(int client_fd) {
+    char buffer[MAX_BUFFER];
+
+    while (true) {
+        ssize_t bytesRead = read(client_fd, buffer, MAX_BUFFER - 1);
+        if (bytesRead <= 0) {
+            break;
+        }
+
+        buffer[bytesRead] = '\0';
+        std::string message(buffer);
+
+        // Write on server
+        std::cout << "Log: " << message;
+
+        // Broadcast to everyone else
+        broadcastToOthers(client_fd, message);
+    }
+
+    // Close and delete a client
+    {
+        std::lock_guard<std::mutex> lock(clients_mutex);
+        client_fds.erase(std::remove(client_fds.begin(), client_fds.end(), client_fd), client_fds.end());
+    }
+
+    close(client_fd);
+    std::cout << "Client disconnected.\n";
+}
 
 int main() {
     int server_fd;
-    struct sockaddr_in address;
+    sockaddr_in server_addr{};
     int opt = 1;
-    socklen_t addrlen = sizeof(address);
 
-    // Создаём сокет
-    if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
-        perror("socket failed");
-        exit(EXIT_FAILURE);
+    server_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (server_fd == -1) {
+        perror("socket");
+        return 1;
     }
 
-    // Настройка сокета
-    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt))) {
-        perror("setsockopt");
-        exit(EXIT_FAILURE);
+    setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+
+    server_addr.sin_family = AF_INET;
+    server_addr.sin_addr.s_addr = INADDR_ANY;  // 0.0.0.0
+    server_addr.sin_port = htons(PORT);
+
+    if (bind(server_fd, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+        perror("bind");
+        return 1;
     }
 
-    address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;
-    address.sin_port = htons(9999);
-
-    if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
-        perror("bind failed");
-        exit(EXIT_FAILURE);
-    }
-
-    // Увеличиваем backlog
-    if (listen(server_fd, 5) < 0) {  // было 1, теперь 5
+    if (listen(server_fd, 10) < 0) {
         perror("listen");
-        exit(EXIT_FAILURE);
+        return 1;
     }
 
-    std::cout << "Сервер слушает на порту 9999...\n";
-
-    std::vector<std::thread> clients;
+    std::cout << "Server runs at " << PORT << "\n";
 
     while (true) {
-        int client_fd = accept(server_fd, (struct sockaddr*)&address, &addrlen);
+        sockaddr_in client_addr{};
+        socklen_t client_len = sizeof(client_addr);
+
+        int client_fd = accept(server_fd, (sockaddr*)&client_addr, &client_len);
         if (client_fd < 0) {
             perror("accept");
             continue;
         }
 
-        std::cout << "Клиент подключён!\n";
+        std::cout << "New client connected!\n";
 
-        //  Обрабатываем клиента в отдельном потоке
-        clients.push_back(std::thread([client_fd]() {
-            char buffer[1024];
-            while (true) {
-                int n = read(client_fd, buffer, sizeof(buffer) - 1);
-                if (n <= 0) break;
-                buffer[n] = '\0';
-                std::cout << "Лог: " << buffer;
-            }
-            close(client_fd);
-            std::cout << "Клиент отключён.\n";
-        }));
-    }
+        {
+            std::lock_guard<std::mutex> lock(clients_mutex);
+            client_fds.push_back(client_fd);
+        }
 
-    // Очистка (не достигается, но для порядка)
-    for (auto& t : clients) {
-        if (t.joinable()) t.join();
+        std::thread(handleClient, client_fd).detach();
     }
 
     close(server_fd);

@@ -20,17 +20,41 @@ void sleep_ms(int ms) {
 }
 #endif
 
-// Функция: удаляет пробелы в начале и в конце
+
+LogLevel StringToLevel(std::string s){ 
+    std::cout << s;
+    if (s == "info") return LogLevel::Info;
+    if (s == "error") return LogLevel::Error;
+    if (s == "debug") return LogLevel::Debug;
+    if (s == "warning") return LogLevel::Warning;
+    else throw std::invalid_argument("Only Debug, Info, Warning or Error strings"); 
+    //only these strings because we know the log format
+}
+
+std::string LevelToString(LogLevel level){ 
+    switch (level)
+    {
+    case LogLevel::Info: return "Info";
+    case LogLevel::Debug: return "Debug";
+    case LogLevel::Error: return "Error";
+    case LogLevel::Warning: return "Warning";
+    
+    default:
+        return "Bad input";
+    }
+}
+
+// Cuts front and back wspaces
 std::string trim(const std::string& str) {
     size_t start = str.find_first_not_of(" \t\n\r\f\v");
     if (start == std::string::npos) {
-        return ""; // строка только из пробелов или пустая
+        return ""; // only wspaces or empty line
     }
     size_t end = str.find_last_not_of(" \t\n\r\f\v");
     return str.substr(start, end - start + 1);
 }
 
-// Функция: делает все буквы строчными (в нижнем регистре)
+// Every letter lo lowercase
 std::string toLower(const std::string& str) {
     std::string result = str;
     std::transform(result.begin(), result.end(), result.begin(),
@@ -38,22 +62,22 @@ std::string toLower(const std::string& str) {
     return result;
 }
 
+LogOutput StringToOutput(std::string s){ 
+    if (s == "file") return LogOutput::File;
+    if (s == "socket") return LogOutput::Socket;
+    if (s == "both") return LogOutput::Both;
+    else throw std::invalid_argument("Only File, Socket or Both strings"); 
+}
+
 std::atomic<bool> isRunning(true);
 
-/*void backgroundLogger(Logger& logger) {
-    int counter = 0;
-    while (isRunning) {
-        logger.log("Background log entry #" + std::to_string(counter++), LogLevel::Info);
-        sleep_ms(5000);  // пишем раз в 5 секунд
-    }
-}*/
 
 std::pair<std::string, LogLevel> getMessage (std::string& s){
     std::string temp;
     size_t start = 0;
     size_t pos = s.find_first_of('!');
     if (pos == std::string::npos){
-        return std::make_pair(s, LogLevel::Info);
+        return std::make_pair(s, LogLevel::Default);
     }
     else{
         LogLevel ll;
@@ -72,20 +96,16 @@ std::pair<std::string, LogLevel> getMessage (std::string& s){
     }
 }
 
-void displayMessage(std::string msg, std::queue<std::string>& target){
-    target.push(msg);
-}
-
 // --- userInputHandler ---
 
 void userInputHandler(Logger& logger) {
-    // Очередь сообщений от пользователя
+    // User message queue
     std::queue<std::pair<std::string, LogLevel>> messageQueue;
     std::mutex queueMutex;
     std::condition_variable hasData;
     std::queue<std::string> to_display;
 
-    // Лямбда: поток ввода
+    // Input stream thread
     auto inputThread = [&]() {
         std::string input;
         std::pair<std::string, LogLevel> output;
@@ -98,19 +118,12 @@ void userInputHandler(Logger& logger) {
                 std::lock_guard<std::mutex> lock(queueMutex);
                 messageQueue.push(output);
                 hasData.notify_one();
-            }
-
-            while (!to_display.empty())
-            {
-                std::cout << to_display.front() << std::endl;
-                to_display.pop();
-            }
-            
+            }            
         }
-        hasData.notify_all(); // разбудить логгер, чтобы он завершился
+        hasData.notify_all(); // wake logger to terminate
     };
 
-    // Лямбда: поток записи в лог
+    // Dumping stream thread
     auto loggingThread = [&]() {
         while (isRunning) {
             std::unique_lock<std::mutex> lock(queueMutex);
@@ -119,29 +132,57 @@ void userInputHandler(Logger& logger) {
             if (!messageQueue.empty()) {
                 std::pair<std::string, LogLevel> msg = messageQueue.front();
                 messageQueue.pop();
-                lock.unlock(); // освобождаем мьютекс перед вызовом log()
+                lock.unlock(); // free mutex before calling log()
+                if(msg.second == LogLevel::Default) msg.second = logger.getDefaultLevel();
                 if (msg.first == "exit") isRunning = false;
                 else if (msg.first == "chlevel"){ 
                     logger.setLevel(msg.second);
-                    displayMessage("Level changed to " + logger.levelToString(msg.second), to_display);
+                    std::cout << "Minimum level changed to " + logger.levelToString(msg.second) << std::endl;
                 }
-                else logger.log(msg.first, msg.second);  
+                else if (msg.first == "chdefault"){ 
+                    logger.setDefaultLevel(msg.second);
+                    std::cout << "Default level changed to " + logger.levelToString(msg.second) << std::endl;
+                }
+                else { logger.log(msg.first, msg.second);  }
                 
             }
         }
     };
 
-    // Запускаем оба потока
+    // Run both threads
     std::thread inputT(inputThread);
     std::thread loggingT(loggingThread);
 
-    // Ждём их завершения
+    // Wait termination
     inputT.join();
     loggingT.join();
 }
 
-int main() {
-    Logger logger("interactive_log.txt", LogLevel::Debug, LogOutput::Both, "127.0.0.1", 9999);
+int main(int argc, char* argv[]) {
+    std::string mode = "both";
+    std::string filePath = "log.txt";
+    std::string level = "info";
+    std::string host = "127.0.0.1";
+    int port = 9999;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+
+        if (arg == "--mode" && i + 1 < argc) {
+            mode = argv[++i];
+        }
+        else if (arg == "--file" && i + 1 < argc) {
+            filePath = argv[++i];
+        }
+        else if (arg == "--level" && i + 1 < argc) {
+            level = argv[++i];
+        }
+        else {
+            std::cerr << "Неизвестный параметр: " << arg << "\n";
+        }
+    }
+    
+    Logger logger(filePath, StringToLevel(trim(toLower(level))), StringToOutput(trim(toLower(mode))), host, port);
 
     std::thread input(userInputHandler, std::ref(logger));
 

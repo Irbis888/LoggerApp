@@ -16,7 +16,8 @@ enum class LogLevel {
     Debug = 0,
     Info,
     Warning,
-    Error
+    Error,
+    Default
 };
 
 enum class LogOutput {
@@ -37,6 +38,8 @@ public:
 
     void setLevel(LogLevel level);
     LogLevel getLevel() const;
+    LogLevel getDefaultLevel() const;
+    void setDefaultLevel(LogLevel level);
     std::string levelToString(LogLevel level) const;
 
 private:
@@ -44,7 +47,8 @@ private:
 
 private:
     std::ofstream m_output;
-    LogLevel m_level;
+    LogLevel m_level = LogLevel::Debug;
+    LogLevel defaultLevel;
     mutable std::mutex m_mutex;
 
     LogOutput m_outputMode;
