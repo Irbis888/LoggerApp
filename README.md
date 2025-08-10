@@ -95,17 +95,24 @@ New client connected!
 
 2. Запускаем генератор логов:
 ```
-[2025-08-08 14:33:21] [Info] Test message
-[2025-08-08 14:33:22] [Warning] Something might be wrong
+2025-08-08 14:33:21 [Info] Test message
+2025-08-08 14:33:29 [Warning] Something might be wrong 
 ```
+(так выглядят сообщения на сокете или в файле)
+
 
 3. Запускаем сбор статистики:
 ```
---- Статистика логов ---
-Info: 1
-Warning: 1
-Error: 0
+--- Log statistics ---
+Total Messages: 4
 Debug: 0
+Info: 4
+Warning: 0
+Error: 0
+Recent messages: 4
+Largest length: 6
+Smallest length: 2
+Average length: 3
 ------------------------
 ```
 
